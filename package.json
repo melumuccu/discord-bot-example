@@ -1,26 +1,31 @@
 {
-  "name": "discord-getting-started",
-  "private": true,
-  "version": "1.0.0",
-  "description": "Discord example app",
-  "main": "app.js",
-  "type": "module",
-  "engines": {
-    "node": ">=18.x"
-  },
-  "scripts": {
-    "start": "node src/app.js",
-    "register": "node src/commands.js",
-    "dev": "nodemon src/app.js"
-  },
   "author": "Shay DeWael",
-  "license": "MIT",
   "dependencies": {
     "discord-interactions": "^4.0.0",
     "dotenv": "^16.0.3",
     "express": "^4.18.2"
   },
+  "description": "Discord example app",
   "devDependencies": {
-    "nodemon": "^3.0.0"
-  }
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.13.11",
+    "nodemon": "^3.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=18.x"
+  },
+  "license": "MIT",
+  "main": "dist/app.js",
+  "name": "discord-getting-started",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/app.ts",
+    "register": "node dist/commands.js",
+    "start": "node dist/app.js"
+  },
+  "type": "module",
+  "version": "1.0.0"
 }

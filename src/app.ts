@@ -1,5 +1,5 @@
 import "dotenv/config";
-import express from "express";
+import express, { Request, Response } from "express";
 import {
   ButtonStyleTypes,
   InteractionResponseFlags,
@@ -11,12 +11,44 @@ import {
 import { getRandomEmoji, DiscordRequest } from "./utils.js";
 import { getShuffledOptions, getResult } from "./game.js";
 
+// Types
+interface ActiveGame {
+  id: string;
+  objectName: string;
+}
+
+interface DiscordInteractionRequest extends Request {
+  body: {
+    id: string;
+    type: number;
+    data: {
+      name?: string;
+      custom_id?: string;
+      values?: string[];
+      options?: Array<{ value: string }>;
+    };
+    context?: number;
+    member?: {
+      user: {
+        id: string;
+      };
+    };
+    user?: {
+      id: string;
+    };
+    token?: string;
+    message?: {
+      id: string;
+    };
+  };
+}
+
 // Create an express app
 const app = express();
 // Get port, or default to 3000
 const PORT = process.env.PORT || 3000;
 // To keep track of our active games
-const activeGames = {};
+const activeGames: Record<string, ActiveGame> = {};
 
 /**
  * Interactions endpoint URL where Discord will send HTTP requests
@@ -24,8 +56,8 @@ const activeGames = {};
  */
 app.post(
   "/interactions",
-  verifyKeyMiddleware(process.env.PUBLIC_KEY),
-  async function (req, res) {
+  verifyKeyMiddleware(process.env.PUBLIC_KEY ?? ""),
+  async function (req: DiscordInteractionRequest, res: Response): Promise<any> {
     // Interaction id, type and data
     const { id, type, data } = req.body;
 
@@ -42,7 +74,6 @@ app.post(
      */
     if (type === InteractionType.APPLICATION_COMMAND) {
       const { name } = data;
-
       // "test" command
       if (name === "test") {
         // Send a message into the channel where command was triggered from
@@ -61,9 +92,13 @@ app.post(
         const context = req.body.context;
         // User ID is in user field for (G)DMs, and member for servers
         const userId =
-          context === 0 ? req.body.member.user.id : req.body.user.id;
+          context === 0 ? req.body.member?.user.id : req.body.user?.id;
         // User's object choice
-        const objectName = req.body.data.options[0].value;
+        const objectName = req.body.data.options?.[0]?.value;
+
+        if (!userId || !objectName) {
+          return res.status(400).json({ error: "invalid request" });
+        }
 
         // Create active game using message ID as the game ID
         activeGames[id] = {
@@ -101,11 +136,11 @@ app.post(
       // custom_id set in payload when sending message component
       const componentId = data.custom_id;
 
-      if (componentId.startsWith("accept_button_")) {
+      if (componentId?.startsWith("accept_button_")) {
         // get the associated game ID
         const gameId = componentId.replace("accept_button_", "");
         // Delete message with token in request body
-        const endpoint = `webhooks/${process.env.APP_ID}/${req.body.token}/messages/${req.body.message.id}`;
+        const endpoint = `webhooks/${process.env.APP_ID}/${req.body.token}/messages/${req.body.message?.id}`;
         try {
           await res.send({
             type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
@@ -133,7 +168,7 @@ app.post(
         } catch (err) {
           console.error("Error sending message:", err);
         }
-      } else if (componentId.startsWith("select_choice_")) {
+      } else if (componentId?.startsWith("select_choice_")) {
         // get the associated game ID
         const gameId = componentId.replace("select_choice_", "");
 
@@ -143,10 +178,18 @@ app.post(
           // Get user ID and object choice for responding user
           // User ID is in user field for (G)DMs, and member for servers
           const userId =
-            context === 0 ? req.body.member.user.id : req.body.user.id;
+            context === 0 ? req.body.member?.user.id : req.body.user?.id;
+
+          if (!userId) {
+            return res.status(400).json({ error: "invalid user" });
+          }
 
           // User's object choice
-          const objectName = data.values[0];
+          const objectName = data.values?.[0];
+
+          if (!objectName) {
+            return res.status(400).json({ error: "invalid choice" });
+          }
 
           // Calculate result from helper function
           const resultStr = getResult(activeGames[gameId], {
@@ -157,11 +200,11 @@ app.post(
           // Remove game from storage
           delete activeGames[gameId];
           // Update message with token in request body
-          const endpoint = `webhooks/${process.env.APP_ID}/${req.body.token}/messages/${req.body.message.id}`;
+          const endpoint = `webhooks/${process.env.APP_ID}/${req.body.token}/messages/${req.body.message?.id}`;
 
           try {
             // Send results
-            await res.send({
+            return res.send({
               type: InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
               data: { content: resultStr },
             });
